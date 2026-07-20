@@ -1,9 +1,7 @@
 FROM ubuntu:24.04
 
-# Éviter les questions interactives d'apt
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Mise à jour et installation des outils de base
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         software-properties-common \
@@ -31,35 +29,37 @@ RUN apt-get update && \
         bear \
         ccache \
         vim \
-        cargo \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Npm
 RUN apt-get update && apt-get install -y nodejs npm && \
     npm install -g prettier markdownlint-cli2 markdown-toc lazygit
 
-# Installer Neovim depuis la release officielle
 RUN curl -L https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz \
     -o /tmp/nvim.tar.gz && \
     tar xzf /tmp/nvim.tar.gz -C /opt && \
     ln -s /opt/nvim-linux-x86_64/bin/nvim /usr/local/bin/nvim && \
     rm /tmp/nvim.tar.gz
 
-# Installer Starship rapidement avec son script officiel (pré-compilé)
 RUN curl -sS https://starship.rs/install.sh | sh -s -- -y
 
-# Créer un utilisateur non-root
+# 1. On utilise rustup pour avoir Rust à jour (1.89+) au lieu du paquet apt figé (1.75)
+# 2. On installe binstall
+# 3. On utilise GITHUB_TOKEN si dispo (optionnel) ou GITHUB_API_URL pour contourner les limites
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
+    . $HOME/.cargo/env && \
+    curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash && \
+    cargo binstall -y --no-track lsd xcp git-delta procs difftastic felix skim asciinema ast-grep stylua tree-sitter-cli
+
 RUN useradd -ms /bin/bash dev
 
+COPY --chown=dev:dev bashrc.sh /tmp/bashrc.sh
+
 USER dev
-WORKDIR /workspace
+WORKDIR /home/dev
 
-# 1. Utiliser le cargo installé par apt (déjà dans le PATH pour root et l'utilisateur dev)
-# 2. Installer `cargo-binstall` pour télécharger les binaires pré-compilés
-# 3. Utiliser binstall pour les outils terminaux restants
-RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash && \
-    cargo binstall -y lsd xcp git-delta procs difftastic felix skim asciinema ast-grep stylua tree-sitter-cli
+# Modification pour injecter le path Cargo directement dans le .bashrc de l'utilisateur dev
+RUN echo 'source /root/.cargo/env' >> /home/dev/.bashrc && \
+    cat /tmp/bashrc.sh >> /home/dev/.bashrc && rm /tmp/bashrc.sh
 
-# Installer dotfiles
-RUN git clone https://github.com/Pierre-Mollard/dotfiles ~/workspace/PERSO/dotfiles && \
-    stow --dir="$HOME/workspace/PERSO/dotfiles/stow" --target="$HOME" tmux vim nvim starship
+RUN git clone https://github.com/Pierre-Mollard/dotfiles /home/dev/PERSO/dotfiles && \
+    stow --dir="/home/dev/PERSO/dotfiles/stow" --target="/home/dev" tmux vim nvim starship
