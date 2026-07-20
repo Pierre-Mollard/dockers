@@ -20,10 +20,12 @@ RUN apt-get update && \
         python3-venv \
         stow \
         fd-find \
-        tree-sitter-cli \
         shellcheck \
         shfmt \
         xz-utils \
+        bat \
+        bear \
+        ccache \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Installer Neovim depuis la release officielle
@@ -41,8 +43,27 @@ WORKDIR /workspace
 
 # Installer Rust via rustup pour l'utilisateur "dev"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
-    echo 'source $HOME/.cargo/env' >> $HOME/.bashrc
+    echo 'source $HOME/.cargo/env' >> $HOME/.bashrc \
+# Instaler les packages cargo pour l'utilisateur "dev"
+    cargo install tree-sitter-cli --locked \
+    cargo install lsd \
+    cargo install xcp \
+    cargo install git-delta \
+    cargo install procs \
+    cargo install difftastic \
+    cargo install felix \
+    cargo install skim \
+    cargo install ascinema \
+    cargo install starship 
+
+# Install latest lazygit binary
+RUN LAZYGIT_VERSION=v0.40.2 && \
+    curl -Lo lazygit.tar.gz \
+      "https://github.com/jesseduffield/lazygit/releases/download/${LAZYGIT_VERSION}/lazygit_${LAZYGIT_VERSION#v}_Linux_x86_64.tar.gz" && \
+    tar xf lazygit.tar.gz lazygit && \
+    install -D lazygit "$HOME/.local/bin/lazygit" && \
+    rm -f lazygit lazygit.tar.gz
 
 # Installer dotfiles pour l'utilisateur "dev"
 RUN git clone https://github.com/Pierre-Mollard/dotfiles ~/workspace/PERSO/dotfiles
-RUN stow --dir="$HOME/workspace/PERSO/dotfiles/stow" --target="$HOME" tmux vim nvim
+RUN stow --dir="$HOME/workspace/PERSO/dotfiles/stow" --target="$HOME" tmux vim nvim starship
