@@ -31,6 +31,7 @@ RUN apt-get update && \
         bear \
         ccache \
         vim \
+        cargo \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Npm
@@ -44,31 +45,21 @@ RUN curl -L https://github.com/neovim/neovim/releases/latest/download/nvim-linux
     ln -s /opt/nvim-linux-x86_64/bin/nvim /usr/local/bin/nvim && \
     rm /tmp/nvim.tar.gz
 
+# Installer Starship rapidement avec son script officiel (pré-compilé)
+RUN curl -sS https://starship.rs/install.sh | sh -s -- -y
+
 # Créer un utilisateur non-root
 RUN useradd -ms /bin/bash dev
 
 USER dev
 WORKDIR /workspace
 
-# Installer Rust via rustup pour l'utilisateur "dev"
-# Instaler les packages cargo pour l'utilisateur "dev"
- RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
-    echo 'source $HOME/.cargo/env' >> $HOME/.bashrc && \
-    . "$HOME/.cargo/env" && \
-    rustup component add rust-analyzer && \
-    cargo install tree-sitter-cli --locked && \
-    cargo install lsd && \
-    cargo install xcp && \
-    cargo install git-delta && \
-    cargo install procs && \
-    cargo install difftastic && \
-    cargo install felix && \
-    cargo install skim && \
-    cargo install asciinema && \
-    cargo install starship && \
-    cargo install ast-grep && \
-    cargo install stylua
+# 1. Utiliser le cargo installé par apt (déjà dans le PATH pour root et l'utilisateur dev)
+# 2. Installer `cargo-binstall` pour télécharger les binaires pré-compilés
+# 3. Utiliser binstall pour les outils terminaux restants
+RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash && \
+    cargo binstall -y lsd xcp git-delta procs difftastic felix skim asciinema ast-grep stylua tree-sitter-cli
 
-# Installer dotfiles pour l'utilisateur "dev"
-RUN git clone https://github.com/Pierre-Mollard/dotfiles ~/workspace/PERSO/dotfiles
-RUN stow --dir="$HOME/workspace/PERSO/dotfiles/stow" --target="$HOME" tmux vim nvim starship
+# Installer dotfiles
+RUN git clone https://github.com/Pierre-Mollard/dotfiles ~/workspace/PERSO/dotfiles && \
+    stow --dir="$HOME/workspace/PERSO/dotfiles/stow" --target="$HOME" tmux vim nvim starship
