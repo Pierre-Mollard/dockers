@@ -28,3 +28,14 @@ On remote pc:
 
 - docker load -i devbox.tar
 - docker run -it --hostname devbox my-offline-devbox
+
+## Run compose
+
+docker compose -f compose/devenv-ollama.yml up -d
+docker compose -f compose/devenv-ollama.yml exec devenv bash
+
+gpu version:
+docker compose \
+  -f compose/devenv-ollama.yml \
+  -f compose/devenv-ollama.gpu.yml \
+  up -d
