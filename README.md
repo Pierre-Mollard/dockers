@@ -1,9 +1,5 @@
 # Docker images
 
-TODO: Add tmux and neovim as extra packages OR recompile?
-TODO: Add configs (auto from github?)
-TODO: script to regenerate when my dotfiles changes (?)
-
 List of tools:
 
 - neovim
@@ -19,3 +15,16 @@ List of tools:
 - mosh
 - openssl
 - lazyvim
+
+## Transfer containers
+
+On internet connected pc:
+
+- run image, then exit without stopping (C-\ or C-P)
+- docker commit <container_id> my-offline-devbox
+- docker save -o devbox.tar my-offline-devbox
+
+On remote pc:
+
+- docker load -i devbox.tar
+- docker run -it --hostname devbox my-offline-devbox
