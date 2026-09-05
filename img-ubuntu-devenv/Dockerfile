@@ -2,56 +2,131 @@ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# 1. Install core dependencies and natively available Ubuntu tools
+# Use Bash for RUN instructions:
+# -e: stop on errors
+# -u: fail on unset variables
+# -o pipefail: fail a pipeline if any command fails
+SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
+
+# 1. Install Ubuntu packages, Zsh, and Zsh plugins
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         software-properties-common \
-        git curl wget unzip ca-certificates build-essential \
-        clangd clang libclang-dev \
-        ripgrep tmux fzf python3 python3-pip python3-venv stow fd-find \
-        shellcheck shfmt xz-utils bat bear ccache vim \
-        lsd git-delta asciinema \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+        git \
+        curl \
+        wget \
+        unzip \
+        ca-certificates \
+        build-essential \
+        clangd \
+        clang \
+        libclang-dev \
+        ripgrep \
+        tmux \
+        fzf \
+        python3 \
+        python3-pip \
+        python3-venv \
+        stow \
+        fd-find \
+        shellcheck \
+        shfmt \
+        xz-utils \
+        bat \
+        bear \
+        ccache \
+        vim \
+        lsd \
+        git-delta \
+        asciinema \
+        nodejs \
+        npm \
+        zsh \
+        zsh-autosuggestions \
+        zsh-syntax-highlighting && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# 2. Install Lazygit via direct GitHub binary download
-RUN LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep -Po '"tag_name": "v\K[^"]*') && \
-    curl -Lo lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz" && \
-    tar xf lazygit.tar.gz lazygit && \
-    install lazygit /usr/local/bin && \
-    rm lazygit.tar.gz lazygit
+# 2. Install Lazygit from its latest GitHub release
+RUN LAZYGIT_VERSION="$( \
+        curl -fsSL https://api.github.com/repos/jesseduffield/lazygit/releases/latest \
+        | grep -Po '"tag_name": "v\K[^"]*' \
+    )" && \
+    curl -fsSLo /tmp/lazygit.tar.gz \
+        "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz" && \
+    tar -xzf /tmp/lazygit.tar.gz -C /tmp lazygit && \
+    install -m 0755 /tmp/lazygit /usr/local/bin/lazygit && \
+    rm -f /tmp/lazygit /tmp/lazygit.tar.gz
 
-# 3. Install Node.js and NPM packages (including tree-sitter-cli natively)
-RUN apt-get update && apt-get install -y nodejs npm && \
-    npm install -g prettier markdownlint-cli2 markdown-toc tree-sitter-cli && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+# 3. Install globally managed Node tooling
+RUN npm install -g \
+        prettier \
+        markdownlint-cli2 \
+        markdown-toc \
+        tree-sitter-cli && \
+    npm cache clean --force
 
-# 4. Install Neovim via GitHub release
-RUN curl -L https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz \
-    -o /tmp/nvim.tar.gz && \
-    tar xzf /tmp/nvim.tar.gz -C /opt && \
-    ln -s /opt/nvim-linux-x86_64/bin/nvim /usr/local/bin/nvim && \
-    rm /tmp/nvim.tar.gz
+# 4. Install Neovim from its latest release
+RUN curl -fsSL \
+        https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz \
+        -o /tmp/nvim.tar.gz && \
+    tar -xzf /tmp/nvim.tar.gz -C /opt && \
+    ln -sf /opt/nvim-linux-x86_64/bin/nvim /usr/local/bin/nvim && \
+    rm -f /tmp/nvim.tar.gz
 
 # 5. Install Starship
-RUN curl -sS https://starship.rs/install.sh | sh -s -- -y
+RUN curl -fsS https://starship.rs/install.sh | sh -s -- -y
 
-# 6. Create dev user and set up permissions
-RUN useradd -ms /bin/bash dev
+# 6. Create the non-root development user and make Zsh its login shell
+RUN useradd \
+        --create-home \
+        --shell /usr/bin/zsh \
+        dev
+
 COPY --chown=dev:dev bashrc.sh /tmp/bashrc.sh
+
+ENV CARGO_HOME=/home/dev/.cargo
+ENV RUSTUP_HOME=/home/dev/.rustup
+ENV PATH=/home/dev/.cargo/bin:${PATH}
 
 USER dev
 WORKDIR /home/dev
 
-# 7. Install Rust and fetch pre-compiled binaries via cargo-binstall
+# 7. Install Rust, rust-analyzer, Rust sources, and Cargo-installed tools
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
-    . $HOME/.cargo/env && \
-    curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash && \
-    cargo binstall -y --no-track xcp difftastic felix skim ast-grep stylua procs
+    rustup component add \
+        rust-analyzer \
+        rust-src \
+        rustfmt \
+        clippy && \
+    curl -L --proto '=https' --tlsv1.2 -sSf \
+        https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh \
+        | bash && \
+    cargo binstall -y --no-track \
+        xcp \
+        difftastic \
+        felix \
+        skim \
+        ast-grep \
+        stylua \
+        procs
 
-# 8. Configure bashrc and dotfiles
-RUN echo 'source $HOME/.cargo/env' >> /home/dev/.bashrc && \
-    cat /tmp/bashrc.sh >> /home/dev/.bashrc && rm /tmp/bashrc.sh
+# 8. Configure Bash and Zsh.
+# Configured through dotfiles
+RUN { \
+        echo 'source "$HOME/.cargo/env"'; \
+        cat /tmp/bashrc.sh; \
+    } >> "$HOME/.bashrc" && \
+    rm -f /tmp/bashrc.sh
 
-# 9. Clone and setup dotfiles
-RUN git clone https://github.com/Pierre-Mollard/dotfiles /home/dev/PERSO/dotfiles && \
-    stow --dir="/home/dev/PERSO/dotfiles/stow" --target="/home/dev" tmux vim nvim starship
+# 9. Clone and stow dotfiles
+RUN git clone https://github.com/Pierre-Mollard/dotfiles \
+        /home/dev/PERSO/dotfiles && \
+    stow \
+        --dir="/home/dev/PERSO/dotfiles/stow" \
+        --target="/home/dev" \
+        tmux \
+        vim \
+        nvim \
+        starship \
+        zsh
