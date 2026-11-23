@@ -1,5 +1,8 @@
-#!/usr/bin/bash
-# Script to build image
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Will build from the same directory (Dockerfile) with this name/version
-docker build -t img-ubuntu-devenv:latest .
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=engine.sh
+source "$script_dir/engine.sh"
+
+exec "$engine" build --pull -t "${IMAGE:-img-ubuntu-devenv:latest}" "$@" "$script_dir"

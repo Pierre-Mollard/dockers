@@ -1,4 +1,10 @@
+ARG NODE_VERSION=24
+FROM node:${NODE_VERSION}-bookworm-slim AS node
+
 FROM ubuntu:24.04
+
+# Use a supported Node LTS rather than Ubuntu 24.04's Node 18.
+COPY --from=node /usr/local/ /usr/local/
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -18,6 +24,8 @@ RUN apt-get update && \
         unzip \
         ca-certificates \
         build-essential \
+        cmake \
+        ninja-build \
         clangd \
         clang \
         libclang-dev \
@@ -39,8 +47,6 @@ RUN apt-get update && \
         lsd \
         git-delta \
         asciinema \
-        nodejs \
-        npm \
         zsh \
         zsh-autosuggestions \
         zsh-syntax-highlighting && \
@@ -60,10 +66,10 @@ RUN LAZYGIT_VERSION="$( \
 
 # 3. Install globally managed Node tooling
 RUN npm install -g \
+        --engine-strict \
         prettier \
         markdownlint-cli2 \
-        markdown-toc \
-        tree-sitter-cli && \
+        markdown-toc && \
     npm cache clean --force
 
 # 4. Install Neovim from its latest release
@@ -108,6 +114,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
         felix \
         skim \
         ast-grep \
+        tree-sitter-cli \
         stylua \
         procs
 
@@ -129,4 +136,8 @@ RUN git clone https://github.com/Pierre-Mollard/dotfiles \
         vim \
         nvim \
         starship \
-        zsh
+        zsh && \
+    mkdir -p \
+        /home/dev/.local/share/nvim \
+        /home/dev/.local/state/nvim \
+        /home/dev/.cache/nvim
